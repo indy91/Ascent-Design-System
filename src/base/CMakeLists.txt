@@ -1,0 +1,9 @@
+target_sources(Ascent-Design-System
+  PRIVATE
+    AscentDesignSystem.h
+    AscentDesignSystem.cpp
+	PrecisePredictor.h
+	PrecisePredictor.cpp
+	PEG4A.h
+	PEG4A.cpp
+)
