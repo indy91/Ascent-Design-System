@@ -144,7 +144,7 @@ void PrecisePredictor::IntegrationTerminationControlRoutine()
 	}
 
 	// End control
-	if (abs(RCALC) < 1e-9 || abs(DT) < 1e-12)
+	if (abs(RCALC) < 1e-9 || abs(DT) < 1e-8)
 	{
 		IEND = true;
 		return;
@@ -174,6 +174,12 @@ void PrecisePredictor::IntegrationTerminationControlRoutine()
 		RestoreVariables();
 		VAR = DT;
 		DT = (VAR * RES1) / (RES1 - RCALC);
+
+		// If the change in step length is too small, exit
+		if (abs(VAR - DT) < 1e-8)
+		{
+			IEND = true;
+		}
 		return;
 	}
 
