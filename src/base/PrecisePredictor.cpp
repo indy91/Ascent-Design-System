@@ -29,6 +29,7 @@ PrecisePredictor::PrecisePredictor(OrbMech::GlobalConstants globconst) : globcns
 	HP = HD2 = H2D2 = H2D8 = HD6 = 0.0;
 	RS = VS = _V(0, 0, 0);
 	RCALC = RES1 = TS = VAR = 0.0;
+	Error = 0;
 }
 
 void PrecisePredictor::RUN(const PrecisePredictorInputs& in, PrecisePredictorOutputs& out)
@@ -51,7 +52,7 @@ void PrecisePredictor::RUN(const PrecisePredictorInputs& in, PrecisePredictorOut
 	out.SV_FINAL.CD = in.SV_INIT.CD;
 	out.SV_FINAL.Area = in.SV_INIT.Area;
 	out.SV_FINAL.Weight = in.SV_INIT.Weight;
-	out.Error = 0;
+	out.Error = Error;
 	out.ISTOPS = ISTOPS;
 }
 
@@ -73,6 +74,7 @@ void PrecisePredictor::Init(const PrecisePredictorInputs& in)
 	T = 0.0;
 	INITE = 0;
 	IEND = false;
+	Error = 0;
 }
 
 void PrecisePredictor::EffectiveForcesRoutine()

@@ -312,6 +312,7 @@ int AscentDesignSystem::SimulateAscent(const SimInputs& in, SimOutputs& out) con
 	predin.DT = 2.0;
 	predin.TMIN = 0.0;
 	predin.HMULT = 1.0;
+	predin.KFactor = 0.0; // Disable drag up to OMS-1/MPS dump for now because attitude and flow regime likely give a lot less drag
 
 	// Calculate insertion orbital plane
 	IY = OrbMech::CalculateEFIYVector(in.Incl, in.Lat, in.Lng, in.north, in.dt_bias);
@@ -333,7 +334,6 @@ int AscentDesignSystem::SimulateAscent(const SimInputs& in, SimOutputs& out) con
 	// MECO to ET sep
 	predin.SV_INIT = sv_MECO;
 	predin.TMAX = in.ET_Sep_DTIG;
-	predin.KFactor = 1.0; // TBD: Drag during this time? Maybe counteracted by venting?
 	pred.RUN(predin, predout);
 	sv_ET_sep_before = predout.SV_FINAL;
 
@@ -353,6 +353,15 @@ int AscentDesignSystem::SimulateAscent(const SimInputs& in, SimOutputs& out) con
 		pred.RUN(predin, predout);
 		sv_MPS_dump_before = predout.SV_FINAL;
 
+		// ET tank sep to OMS-1
+		predin.SV_INIT = sv_ET_sep_after;
+		predin.TMAX = (sv_MECO.GMT + in.OMS1.DTIG) - sv_ET_sep_after.GMT;
+		pred.RUN(predin, predout);
+		sv_OMS1_before = predout.SV_FINAL;
+
+		// Take drag into account from here on
+		predin.KFactor = 1.0;
+
 		// Apply MPS Dump
 		sv_MPS_dump_after = sv_MPS_dump_before;
 		sv_MPS_dump_after.V += tmul(OrbMech::LVLH_Matrix(sv_MPS_dump_before.R, sv_MPS_dump_before.V), in.MPS_Dump_DV);
@@ -362,12 +371,6 @@ int AscentDesignSystem::SimulateAscent(const SimInputs& in, SimOutputs& out) con
 		predin.TMAX = (sv_MECO.GMT + in.OMS2.DTIG) - sv_MPS_dump_after.GMT;
 		pred.RUN(predin, predout);
 		sv_OMS2_before = predout.SV_FINAL;
-
-		// ET tank sep to OMS-1
-		predin.SV_INIT = sv_ET_sep_after;
-		predin.TMAX = (sv_MECO.GMT + in.OMS1.DTIG) - sv_ET_sep_after.GMT;
-		pred.RUN(predin, predout);
-		sv_OMS1_before = predout.SV_FINAL;
 
 		// Predict what OMS-1 would look like
 		peg.OMSBurnPrediction(sv_OMS1_before, RLS_TEG, in.OMS1.C1, in.OMS1.C2, in.OMS1.HTGT, in.OMS1.THETA, globcnst.FT, globcnst.VEX);
@@ -380,6 +383,9 @@ int AscentDesignSystem::SimulateAscent(const SimInputs& in, SimOutputs& out) con
 		predin.TMAX = (sv_MECO.GMT + in.OMS1.DTIG) - sv_ET_sep_after.GMT;
 		pred.RUN(predin, predout);
 		sv_OMS1_before = predout.SV_FINAL;
+
+		// Take drag into account from here on
+		predin.KFactor = 1.0;
 
 		// OMS-1
 		peg.OMSBurnPrediction(sv_OMS1_before, RLS_TEG, in.OMS1.C1, in.OMS1.C2, in.OMS1.HTGT, in.OMS1.THETA, globcnst.FT, globcnst.VEX);
@@ -446,8 +452,15 @@ int AscentDesignSystem::SimulateAscent(const SimInputs& in, SimOutputs& out) con
 	predin.STOPVA = 0.0; // Impact
 	predin.GMD = 4;
 	predin.GMO = 4;
+	predin.KFactor = 1.0;
 
 	pred.RUN(predin, predout);
+
+	if (predout.Error)
+	{
+		// Error
+		return 1;
+	}
 
 	// Write outputs
 	out.RLS_TEG = RLS_TEG;
@@ -1036,7 +1049,7 @@ int AscentDesignSystem::coast(OrbMech::StateVector sv_in, double dt, OrbMech::St
 
 	pred.RUN(predin, predout);
 
-	if (predout.ISTOPS != 0) return 1;
+	if (predout.Error || predout.ISTOPS != 0) return 1;
 
 	sv_out = predout.SV_FINAL;
 	return 0;
@@ -1057,7 +1070,7 @@ int AscentDesignSystem::FindApogee(OrbMech::StateVector sv1, OrbMech::StateVecto
 	pred.RUN(predin, predout);
 
 	// Not found?
-	if (predout.ISTOPS != 3) return 1;
+	if (predout.Error || predout.ISTOPS != 3) return 1;
 
 	// Success
 	sv_a = predout.SV_FINAL;

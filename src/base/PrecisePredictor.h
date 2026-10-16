@@ -114,6 +114,8 @@ private:
 	double DT;
 	// STEP utility variables
 	double HP, HD2, H2D2, H2D8, HD6;
+	// Error condition
+	int Error;
 
 	double RES1, RCALC, VAR;
 
