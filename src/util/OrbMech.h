@@ -78,6 +78,8 @@ namespace OrbMech
 	VECTOR3 V_REL(const GlobalConstants& cnst, VECTOR3 R, VECTOR3 V);
 	// Calculate argument of latitude
 	double ArgLat(VECTOR3 R, VECTOR3 V);
+	// TEG to Earth-fixed matrix
+	MATRIX3 TEG_to_EF_Matrix(const GlobalConstants& cnst, double gmt);
 
 	// DRAG
 	void GLFDEN(double Z, double& DEN, double& CS);

@@ -98,6 +98,7 @@ private:
 	wxChoice* combo_Launchpad;
 	wxTextCtrl* text_LATLS;
 	wxTextCtrl* text_LONGLS;
+	wxTextCtrl* text_GMTLO;
 	wxTextCtrl* text_PFA;
 	wxTextCtrl* text_PFT;
 	wxTextCtrl* text_ALT;

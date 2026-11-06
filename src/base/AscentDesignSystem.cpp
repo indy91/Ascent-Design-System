@@ -43,8 +43,15 @@ void AscentDesignSystem::PerformAscentSimulation(const std::vector<ADSArray>& ar
 void AscentDesignSystem::Export(const std::vector<ADSArray>& arr, std::vector<std::string>& out)
 {
 	SimInputs simin;
+	SimOutputs simout;
 
 	simin = ConvertInputs(arr);
+
+	if (SimulateAscent(simin, simout))
+	{
+		// Error
+		return;
+	}
 
 	out.clear();
 
@@ -172,6 +179,48 @@ void AscentDesignSystem::Export(const std::vector<ADSArray>& arr, std::vector<st
 	sprintf_s(Buffer, "%.8lf %.8lf %.8lf", IY.x, IY.y, IY.z);
 	strtemp.assign(Buffer);
 	out.push_back("IY Vector " + strtemp);
+
+	out.push_back("");
+	out.push_back("State Vectors for Flight Design System");
+	out.push_back("");
+	out.push_back("MECO:");
+	out.push_back("");
+	FDSStateVectorOutput(simout.sv_MECO, out);
+	out.push_back("");
+	out.push_back("PRE-ET SEP:");
+	out.push_back("");
+	FDSStateVectorOutput(simout.sv_ET_sep_before, out);
+	out.push_back("");
+	out.push_back("POST-ET SEP:");
+	out.push_back("");
+	FDSStateVectorOutput(simout.sv_ET_sep_after, out);
+	out.push_back("");
+
+	if (simin.direct)
+	{
+		out.push_back("POST MPS DUMP:");
+		out.push_back("");
+		FDSStateVectorOutput(simout.sv_MPS_dump_after, out);
+	}
+	else
+	{
+		out.push_back("PRE OMS-1:");
+		out.push_back("");
+		FDSStateVectorOutput(simout.sv_OMS1_before, out);
+		out.push_back("POST OMS-1:");
+		out.push_back("");
+		FDSStateVectorOutput(simout.sv_OMS1_after, out);
+	}
+
+	out.push_back("");
+	out.push_back("PRE OMS-2:");
+	out.push_back("");
+	FDSStateVectorOutput(simout.sv_OMS2_before, out);
+
+	out.push_back("");
+	out.push_back("POST OMS-2:");
+	out.push_back("");
+	FDSStateVectorOutput(simout.sv_OMS2_after, out);
 }
 
 int AscentDesignSystem::ConvergeHA(const std::vector<ADSArray>& arr, double HA_desired_NM, std::vector<std::string>& out)
@@ -303,7 +352,8 @@ int AscentDesignSystem::SimulateAscent(const SimInputs& in, SimOutputs& out) con
 	PrecisePredictorInputs predin;
 	PrecisePredictorOutputs predout;
 	OrbMech::StateVector sv_MECO, sv_ET_sep_before, sv_ET_sep_after, sv_MPS_dump_before, sv_MPS_dump_after, sv_OMS2_before, sv_OMS1_before, sv_OMS1_after, sv_OMS2_after, sv_OMS2_perigee;
-	VECTOR3 IY, RLS_TEG, VGO_OMS1, VGO_OMS2;
+	MATRIX3 M_TEG_EF;
+	VECTOR3 IY_EF, IY_TEG, RLS_TEG, VGO_OMS1, VGO_OMS2;
 	double TGO_OMS1, TGO_OMS2;
 
 	// Assume constant for now
@@ -315,10 +365,12 @@ int AscentDesignSystem::SimulateAscent(const SimInputs& in, SimOutputs& out) con
 	predin.KFactor = 0.0; // Disable drag up to OMS-1/MPS dump for now because attitude and flow regime likely give a lot less drag
 
 	// Calculate insertion orbital plane
-	IY = OrbMech::CalculateEFIYVector(in.Incl, in.Lat, in.Lng, in.north, in.dt_bias);
+	IY_EF = OrbMech::CalculateEFIYVector(in.Incl, in.Lat, in.Lng, in.north, in.dt_bias);
+	M_TEG_EF = OrbMech::TEG_to_EF_Matrix(globcnst, in.GMTLO);
+	IY_TEG = tmul(M_TEG_EF, IY_EF);
 
 	// Simulate launch
-	OrbMech::ENSERT(in.Lat, in.Lng, in.PFA, in.PFT, in.RINS, in.VINS, in.GAMINS, 0.0, 10000000.0, globcnst.EARTH_RATE, IY, sv_MECO);
+	OrbMech::ENSERT(in.Lat, in.Lng, in.PFA, in.PFT, in.RINS, in.VINS, in.GAMINS, in.GMTLO, 10000000.0, globcnst.EARTH_RATE, IY_TEG, sv_MECO);
 
 	//Store rest of inputs
 	sv_MECO.CD = in.Chaser_CD;
@@ -326,7 +378,7 @@ int AscentDesignSystem::SimulateAscent(const SimInputs& in, SimOutputs& out) con
 	sv_MECO.Weight = in.Chaser_Weight + in.ET_Weight;
 
 	// Values for PEG4
-	RLS_TEG = OrbMech::GetURLS(0.0, in.Lat, in.Lng, globcnst.EARTH_RATE);
+	RLS_TEG = OrbMech::GetURLS(in.GMTLO, in.Lat, in.Lng, globcnst.EARTH_RATE);
 
 	PrecisePredictor pred(globcnst);
 	PEG4A peg(globcnst);
@@ -775,6 +827,7 @@ AscentDesignSystem::SimInputs AscentDesignSystem::ConvertInputs(const std::vecto
 {
 	SimInputs in;
 
+	in.GMTLO = arr[35].dVal;
 	in.Incl = arr[0].dVal * MathConstants::RAD;
 	in.Lat = arr[1].dVal * MathConstants::RAD;
 	in.Lng = arr[2].dVal * MathConstants::RAD;
@@ -817,10 +870,10 @@ void AscentDesignSystem::WriteOutputs(const SimInputs& simin, SimOutputs& simout
 {
 	out.clear();
 	out.push_back("MECO");
-	PrintStateVector(simout.sv_MECO, out);
+	PrintStateVector(simout.sv_MECO, simin.GMTLO, out);
 	out.push_back("");
 	out.push_back("ET Sep");
-	PrintStateVector(simout.sv_ET_sep_after, out);
+	PrintStateVector(simout.sv_ET_sep_after, simin.GMTLO, out);
 	out.push_back("");
 
 	if (simin.direct)
@@ -829,26 +882,26 @@ void AscentDesignSystem::WriteOutputs(const SimInputs& simin, SimOutputs& simout
 		PrintBurnData(simout.sv_OMS1_before, simout.VGO_OMS1, simout.TGO_OMS1, out);
 		out.push_back("");
 		out.push_back("MPS Dump");
-		PrintStateVector(simout.sv_MPS_dump_after, out);
+		PrintStateVector(simout.sv_MPS_dump_after, simin.GMTLO, out);
 		out.push_back("");
 	}
 	else
 	{
 		out.push_back("OMS-1");
-		PrintStateVector(simout.sv_OMS1_after, out);
+		PrintStateVector(simout.sv_OMS1_after, simin.GMTLO, out);
 		PrintBurnData(simout.sv_OMS1_before, simout.VGO_OMS1, simout.TGO_OMS1, out);
 		out.push_back("");
 	}
 
 	out.push_back("Pre OMS-2");
-	PrintStateVector(simout.sv_OMS2_before, out);
+	PrintStateVector(simout.sv_OMS2_before, simin.GMTLO, out);
 	PrintBurnData(simout.sv_OMS2_before, simout.VGO_OMS2, simout.TGO_OMS2, out);
 	out.push_back("");
 	out.push_back("Post OMS-2");
-	PrintStateVector(simout.sv_OMS2_after, out);
+	PrintStateVector(simout.sv_OMS2_after, simin.GMTLO, out);
 	out.push_back("");
 	out.push_back("180 deg after OMS-2");
-	PrintStateVector(simout.sv_OMS2_perigee, out);
+	PrintStateVector(simout.sv_OMS2_perigee, simin.GMTLO, out);
 
 	out.push_back("");
 	out.push_back("ET Impact");
@@ -870,7 +923,7 @@ void AscentDesignSystem::WriteOutputs(const SimInputs& simin, SimOutputs& simout
 	}
 }
 
-void AscentDesignSystem::PrintStateVector(OrbMech::StateVector sv, std::vector<std::string>& out)
+void AscentDesignSystem::PrintStateVector(OrbMech::StateVector sv, double GMTLO, std::vector<std::string>& out)
 {
 	double HA, HP, r, v, decl, ran, gamma, azi, lng, TT_X;
 	int TXX_FLAG;
@@ -878,7 +931,7 @@ void AscentDesignSystem::PrintStateVector(OrbMech::StateVector sv, std::vector<s
 
 	ORB_ALT_TIME_TSK(sv.R, sv.V, HA, HP, TT_X, TXX_FLAG);
 
-	OrbMech::GMT2String_HHMMSSCS(Buffer2, sv.GMT);
+	OrbMech::GMT2String_HHMMSSCS(Buffer2, sv.GMT - GMTLO);
 
 	sprintf_s(Buffer, "T+%s HA %.1lf HP %.1lf NM ", Buffer2, HA / MathConstants::NAUTICAL_MILE_TO_M, HP / MathConstants::NAUTICAL_MILE_TO_M);
 	strtemp.assign(Buffer);
@@ -919,6 +972,23 @@ void AscentDesignSystem::PrintBurnData(OrbMech::StateVector sv, VECTOR3 VGO, dou
 	VGO_LVLH = mul(M_LVLH, VGO) / MathConstants::FOOT_TO_M;
 
 	sprintf_s(Buffer, "DV %.1lf TGO %.1lf sec VGO %+.1lf %+.1lf %+.1lf ", length(VGO_LVLH), TGO, VGO_LVLH.x, VGO_LVLH.y, VGO_LVLH.z);
+	out.push_back(Buffer);
+}
+
+void AscentDesignSystem::FDSStateVectorOutput(OrbMech::StateVector sv, std::vector<std::string>& out)
+{
+	out.push_back("TEG");
+	sprintf_s(Buffer, "%lf %lf %lf", sv.R.x, sv.R.y, sv.R.z);
+	out.push_back(Buffer);
+	sprintf_s(Buffer, "%lf %lf %lf", sv.V.x, sv.V.y, sv.V.z);
+	out.push_back(Buffer);
+	sprintf_s(Buffer, "%lf", sv.GMT);
+	out.push_back(Buffer);
+	sprintf_s(Buffer, "%lf", sv.Weight / MathConstants::LBM_TO_KG);
+	out.push_back(Buffer);
+	sprintf_s(Buffer, "%lf", sv.Area / pow(MathConstants::FOOT_TO_M, 2));
+	out.push_back(Buffer);
+	sprintf_s(Buffer, "%lf", sv.CD / 2.0); // This is the K-Factor. FDS uses a hardcoded CD of 2.0.
 	out.push_back(Buffer);
 }
 

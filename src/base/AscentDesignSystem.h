@@ -50,6 +50,7 @@ private:
 
 	struct SimInputs
 	{
+		double GMTLO;			// GMT of liftoff, seconds
 		double Incl;			// MECO inclination, radians
 		double Lat;				// Geocentric launchpad latitude, radians
 		double Lng;				// Geographic launchpad longitude, radians
@@ -124,8 +125,9 @@ private:
 	int FindApogee(OrbMech::StateVector sv1, OrbMech::StateVector& sv_a) const;
 
 	// OUTPUT
-	void PrintStateVector(OrbMech::StateVector sv, std::vector<std::string>& out);
+	void PrintStateVector(OrbMech::StateVector sv, double GMTLO, std::vector<std::string>& out);
 	void PrintBurnData(OrbMech::StateVector sv, VECTOR3 VGO, double TGO, std::vector<std::string>& out);
+	void FDSStateVectorOutput(OrbMech::StateVector sv, std::vector<std::string>& out);
 
 	std::string strtemp;
 	char Buffer[256];

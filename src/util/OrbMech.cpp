@@ -249,6 +249,16 @@ namespace OrbMech
 		return u;
 	}
 
+	MATRIX3 TEG_to_EF_Matrix(const GlobalConstants& cnst, double gmt)
+	{
+		double CL, SL;
+
+		CL = cos(gmt * cnst.EARTH_RATE);
+		SL = sin(gmt * cnst.EARTH_RATE);
+
+		return _M(CL, SL, 0.0, -SL, CL, 0.0, 0.0, 0.0, 1.0);
+	}
+
 	void GLFDEN(double Z, double& DEN, double& CS)
 	{
 		//Z is the geometric altitude in meters, DEN is the output density in kg/m^2 and CS is the output speed of sound in m/s

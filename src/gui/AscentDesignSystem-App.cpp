@@ -129,6 +129,11 @@ AscentDesignSystemFrame::AscentDesignSystemFrame(const wxString& title)
     new wxStaticText(panel, wxID_ANY, "deg", wxPoint(minX + diffunit, Y + difftext));
     Y += diffY;
 
+    new wxStaticText(panel, wxID_ANY, "GMTLO", wxPoint(minX, Y + difftext));
+    Add(text_GMTLO = new wxTextCtrl(panel, wxID_ANY, "0:00:00:00.0", wxPoint(minX + diffX, Y)), "/General/GMTLO");
+    text_GMTLO->SetToolTip(wxT("GMT of liftoff (only required if output state vectors are used)"));
+    Y += diffY;
+
     new wxStaticText(panel, wxID_ANY, "PFA", wxPoint(minX, Y + difftext));
     Add(text_PFA = new wxTextCtrl(panel, wxID_ANY, "14.4", wxPoint(minX + diffX, Y)), "/General/PFA");
     text_PFA->SetToolTip(wxT("Powered flight arc"));
@@ -806,6 +811,7 @@ int AscentDesignSystemFrame::CollectInputs(std::vector<ADSArray>& arr)
     if (GetDouble(text_ET_CD, "ET CD", arr)) return 1;
     if (GetDouble(text_ET_Area, "ET Area", arr)) return 1;
     if (GetDouble(text_ET_Weight, "ET Weight", arr)) return 1;
+    if (GetDDDHHMMSS(text_GMTLO, "GMTLO", arr)) return 1;
 
     return 0;
 }
